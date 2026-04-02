@@ -76,9 +76,9 @@ If a newer list introduces CWEs not covered by the local reference, apply your
 own security knowledge to determine appropriate detection heuristics and
 remediation for those new entries.
 
-### Step 2 -- Collect and read the codebase
+### Step 2 -- Collect and read the codebase using an agent
 
-Identify the codebase the user wants reviewed.  This may be:
+Use an agent to identify the codebase the user wants reviewed.  This may be:
 
 - Files uploaded by the user.
 - A directory the user has specified.
@@ -86,14 +86,14 @@ Identify the codebase the user wants reviewed.  This may be:
 
 Read every source file.  Skip binary files, lock files, dependency directories
 (node_modules, vendor, .git, __pycache__, venv, dist, build, target), and
-files larger than 512 KB.  Hold the contents in context for the 25 passes.
+files larger than 512 KB.  
 
-### Step 3 -- Execute the 25 analysis passes
+### Step 3 -- Launch 25 dedicated agents to check the codebase for every one of the 25 top weaknesses
 
-Work through each of the 25 CWEs below **one at a time, in order**.  Each pass
-is a dedicated agent whose sole focus is its assigned weakness.
+Use separate agents to work through each of the 25 CWEs below **one at a time, in order**.  
+Use dedicated agent per weakness whose sole focus is its assigned weakness.
 
-For **every** pass:
+Every agent must:
 
 1. Adopt the role of a specialist auditor for that single CWE only.
 2. Consult the detection heuristics for that CWE from the reference file.
@@ -108,8 +108,7 @@ For **every** pass:
    - **remediation**: a specific, actionable fix for this exact instance, citing the precise function, parameter, or pattern to change.
 5. If no instances are found for that CWE, note it as clean and move on.
 
-**The 25 passes in order (2025 baseline -- use the live list if a newer one
-was obtained in Step 1):**
+**The 25 weaknesses in order (2025 baseline -- use the live list if a newer one was obtained in Step 1):**
 
 | Pass | CWE ID   | Weakness Name                                         | MITRE Score | KEV |
 |------|----------|-------------------------------------------------------|-------------|-----|
