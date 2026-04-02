@@ -103,10 +103,9 @@ For **every** pass:
    - **file**: the file path.
    - **lines**: the line number or line range.
    - **description**: a brief explanation of the weakness.
-   - **snippet**: the vulnerable code (max ~8 lines).
+   - **snippet**: the vulnerable code (max ~8 lines); always replace any secrets, tokens or passwords with 'REDACTED'
    - **severity**: one of CRITICAL / HIGH / MEDIUM / LOW.
-   - **remediation**: a specific, actionable fix for this exact instance,
-     citing the precise function, parameter, or pattern to change.
+   - **remediation**: a specific, actionable fix for this exact instance, citing the precise function, parameter, or pattern to change.
 5. If no instances are found for that CWE, note it as clean and move on.
 
 **The 25 passes in order (2025 baseline -- use the live list if a newer one
@@ -194,7 +193,7 @@ For each CWE category with findings (ordered by risk score, highest first):
   - Severity tag (e.g. [CRITICAL], [HIGH]).
   - File path and line numbers.
   - Description of the weakness.
-  - The vulnerable code snippet in a fenced code block.
+  - The vulnerable code snippet in a fenced code block; always replace any secrets, tokens or passwords with 'REDACTED'
   - The specific remediation recommendation.
 
 #### 5.5 -- Clean Categories
@@ -233,3 +232,5 @@ Present the report file to the user.
 
 6. **Source authority:** The CWE Top 25 list used in this skill must be sourced
    exclusively from https://cwe.mitre.org/top25/.
+
+7. **Exclude secrets:** Always replace any secrets, tokens or passwords with 'REDACTED'.
