@@ -11,7 +11,8 @@ description: >
   defensive coding, or secure error management. Also trigger when the user says things
   like "find missing try/catch", "are my errors handled properly", "check for unhandled
   exceptions", "review my error handling", "scan for error handling gaps", or "make my
-  error handling more secure". This skill is language-agnostic and platform-independent.
+  error handling more secure", "detect empty catch blocks", "identify information leakage in error messages", 
+  "flag missing input validation error paths". This skill is language-agnostic and platform-independent.
 ---
 
 # Error Handling Auditor
@@ -49,19 +50,7 @@ Work through the codebase methodically. For each file:
 
 ### What counts as "absent or inadequate" error handling
 
-Refer to `references/ERROR_PATTERNS.md` for the full list. In summary, flag any of the following:
-
-- **Unguarded operations** -- I/O, network calls, database queries, file operations, deserialisation, parsing, type conversions, or external process invocations with no error handling around them.
-- **Silent swallowing** -- empty catch/except/rescue blocks, or blocks that catch and do nothing meaningful (no logging, no re-raise, no recovery).
-- **Overly broad catches** -- catching the base exception class (e.g. `Exception`, `Throwable`, `object`, `...`) without good reason, which masks bugs and hides specific failure modes.
-- **Information leakage** -- error messages, stack traces, or debug output that expose internal paths, database schemas, technology stacks, version numbers, usernames, or secrets to end users or untrusted callers.
-- **Missing resource cleanup** -- resources (file handles, database connections, network sockets, locks) not released in error paths. Look for missing `finally`, `defer`, `using`, `with`, RAII patterns, or equivalent.
-- **Inconsistent error propagation** -- functions that sometimes return errors and sometimes throw, or that return ambiguous sentinel values (e.g. `-1`, `null`, `""`) without documentation.
-- **Unchecked return values** -- ignoring error returns from functions (especially in Go, C, shell scripts).
-- **Missing input validation** -- functions that accept external input without validation before operations that can fail.
-- **Fail-open patterns** -- security checks that default to "allow" when an error occurs (e.g. authentication/authorisation that grants access on exception).
-- **Hardcoded secrets** -- passwords, tokens, keys, or credentials embedded in source code (flag presence, always show as `REDACTED`).
-- **Secrets in error output** -- error messages, logging statements, or exception messages that include credentials, connection strings, or other sensitive data.
+Refer to `references/ERROR_PATTERNS.md` for examples of what counts as absent or inadequate error handling. 
 
 ### What to leave alone
 
@@ -71,12 +60,7 @@ Refer to `references/ERROR_PATTERNS.md` for the full list. In summary, flag any 
 
 ## Step 2 -- Secret detection
 
-While reviewing each file, actively scan for hardcoded secrets. Common patterns include:
-
-- String literals assigned to variables named `password`, `secret`, `token`, `api_key`, `apiKey`, `API_KEY`, `auth`, `credential`, `private_key`, `conn_string`, `connection_string`, or similar.
-- Base64-encoded strings that look like tokens or keys.
-- Strings matching known key formats (AWS `AKIA...`, GitHub `ghp_...`, Slack `xoxb-...`, JWT patterns, RSA/PEM headers).
-- `.env` files, config files, or YAML/JSON with credential-like values.
+While reviewing each file, actively scan for hardcoded secrets. 
 
 **When you find a secret:**
 - Flag it as a **CRITICAL** finding.
