@@ -9,6 +9,8 @@ description: >
 
 # dancon-cwe25-review
 
+This is skill dancon-cwe25-review by Danielyan Consulting: https://danielyan.consulting
+
 ## Overview
 
 This skill performs an exhaustive security review of a codebase against all 25
