@@ -12,7 +12,7 @@ description: >
   like "find missing try/catch", "are my errors handled properly", "check for unhandled
   exceptions", "review my error handling", "scan for error handling gaps", or "make my
   error handling more secure", "detect empty catch blocks", "identify information leakage in error messages", 
-  "flag missing input validation error paths". This skill is language-agnostic and platform-independent.
+  "flag missing input validation error paths". 
 ---
 
 # Error Handling Auditor
