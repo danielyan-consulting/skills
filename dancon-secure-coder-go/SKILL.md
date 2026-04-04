@@ -16,16 +16,29 @@ This is skill dancon-secure-coder-go by Danielyan Consulting: https://danielyan.
 
 This skill is mandatory for ALL Go code generation. Read it before writing any Go code.
 
-## Why a Go-Specific Security Skill?
+## Quick-Reference Rules
 
-Go's memory safety, garbage collection, and bounds-checked slices eliminate entire classes of vulnerability (buffer overflows, use-after-free, dangling pointers). However, Go introduces its own security surface that general secure-coding guidance does not address:
+Scan this table first. Detailed rules and examples follow below.
 
-- **Goroutine safety** -- unbounded goroutine spawning causes denial-of-service; shared state without proper synchronisation (`sync.Mutex`, channels, `sync/atomic`) causes data races that can corrupt security-critical values such as permission flags or session tokens.
-- **Go-specific CWE patterns** -- `text/template` vs `html/template` confusion (CWE-79), `encoding/gob` deserialising arbitrary types (CWE-502), nil pointer panics from unchecked interface values (CWE-476), and `os/exec` argument-splitting pitfalls (CWE-78) are all Go-idiomatic traps.
-- **Standard library security considerations** -- `net/http`'s default server has no timeouts; `filepath.Join` does not prevent path traversal; `crypto/rand` vs `math/rand` confusion weakens token generation; `database/sql` placeholder syntax varies by driver (`?` vs `$N`).
-- **The `unsafe` escape hatch** -- Go provides the `unsafe` package which, when used, re-introduces every memory-safety vulnerability the language otherwise prevents.
+| CWE | One-Line Rule |
+|---------|---------------------------------------------------------------|
+| CWE-79 | Use `html/template` only; never concatenate user input into HTML |
+| CWE-89 | Use parameterised queries only; never string-build SQL |
+| CWE-352 | Require CSRF tokens on all state-changing endpoints |
+| CWE-862/863/284/639 | Derive identity from session; check ownership server-side on every operation |
+| CWE-22 | `filepath.Abs` + `strings.HasPrefix` against base dir; never trust `filepath.Join` alone |
+| CWE-78/77 | `exec.Command(name, arg1, arg2)` only; never pass a shell string |
+| CWE-94 | Never let user input define template content or plugin paths |
+| CWE-434 | Validate upload content with `http.DetectContentType`; allowlist MIME types |
+| CWE-476 | Nil-check all pointers/interfaces; comma-ok all type assertions |
+| CWE-502 | `io.LimitReader` + `DisallowUnknownFields`; decode into concrete structs; never `gob` from untrusted sources |
+| CWE-20 | Validate type, length, range, format at the boundary; prefer allowlists |
+| CWE-200 | Return generic errors to clients; log detail server-side; never expose `err.Error()` |
+| CWE-306 | Authentication middleware on every non-public endpoint |
+| CWE-918 | Allowlist target hosts; block private IPs; resolve DNS before fetching |
+| CWE-770 | Set `http.Server` timeouts; `MaxBytesReader`; bound goroutines; use `crypto/rand` for secrets |
 
-This skill encodes these Go-specific concerns into enforceable rules.
+---
 
 ## Core Principles
 
@@ -50,43 +63,7 @@ The `unsafe` package MUST NEVER be used in any generated Go code. This is the si
 - Using `//go:linkname` directives
 - Using `cgo` in ways that bypass Go's memory safety
 
-**Why:** The `unsafe` package re-introduces the entire class of memory-safety vulnerabilities (out-of-bounds writes and reads, use-after-free, buffer overflows) that Go's runtime otherwise prevents. These correspond to CWE-787, CWE-416, CWE-125, CWE-120, CWE-121, and CWE-122 in the Top 25.
-
 **When the user requests `unsafe`:** Explain that this skill prohibits it and suggest safe alternatives using the standard library or well-maintained third-party packages. If no safe alternative exists, explain the limitation rather than generating unsafe code.
-
----
-
-## CWE Top 25 2025 -- Go Applicability Map
-
-The following CWEs from the Top 25 apply to Go and have detailed rules in the next section.
-
-| Rank | CWE | Name | Applies to Go? |
-|------|--------|----------------------------------------------|----------------|
-| 1 | CWE-79 | Cross-site Scripting (XSS) | YES |
-| 2 | CWE-89 | SQL Injection | YES |
-| 3 | CWE-352 | Cross-Site Request Forgery (CSRF) | YES |
-| 4 | CWE-862 | Missing Authorisation | YES |
-| 5 | CWE-787 | Out-of-bounds Write | NO |
-| 6 | CWE-22 | Path Traversal | YES |
-| 7 | CWE-416 | Use After Free | NO |
-| 8 | CWE-125 | Out-of-bounds Read | NO |
-| 9 | CWE-78 | OS Command Injection | YES |
-| 10 | CWE-94 | Code Injection | YES |
-| 11 | CWE-120 | Classic Buffer Overflow | NO |
-| 12 | CWE-434 | Unrestricted Upload of File with Dangerous Type | YES |
-| 13 | CWE-476 | NULL Pointer Dereference | YES |
-| 14 | CWE-121 | Stack-based Buffer Overflow | NO |
-| 15 | CWE-502 | Deserialisation of Untrusted Data | YES |
-| 16 | CWE-122 | Heap-based Buffer Overflow | NO |
-| 17 | CWE-863 | Incorrect Authorisation | YES |
-| 18 | CWE-20 | Improper Input Validation | YES |
-| 19 | CWE-284 | Improper Access Control | YES |
-| 20 | CWE-200 | Exposure of Sensitive Information | YES |
-| 21 | CWE-306 | Missing Authentication for Critical Function | YES |
-| 22 | CWE-918 | Server-Side Request Forgery (SSRF) | YES |
-| 23 | CWE-77 | Command Injection | YES |
-| 24 | CWE-639 | Authorisation Bypass Through User-Controlled Key | YES |
-| 25 | CWE-770 | Allocation of Resources Without Limits | YES |
 
 ---
 
@@ -106,11 +83,11 @@ The following CWEs from the Top 25 apply to Go and have detailed rules in the ne
 - Write user-controlled data directly into `http.ResponseWriter` without escaping.
 
 ```go
-// GOOD
+// GOOD -- html/template auto-escapes
 tmpl := template.Must(template.ParseFiles("page.html"))
-tmpl.Execute(w, data) // auto-escaped
+tmpl.Execute(w, data)
 
-// BAD -- never do this
+// BAD -- raw user input in HTML
 fmt.Fprintf(w, "<h1>%s</h1>", userInput)
 ```
 
@@ -119,27 +96,17 @@ fmt.Fprintf(w, "<h1>%s</h1>", userInput)
 **ALWAYS:**
 - Use parameterised queries with `?` or `$N` placeholders.
 - Use `db.Query(query, args...)`, `db.Exec(query, args...)`, `db.QueryRow(query, args...)`.
-- Use a query builder or ORM that parameterises automatically (e.g. `sqlx`, `squirrel`, `GORM`).
+- For dynamic identifiers (table/column names), use a strict allowlist.
 
 **NEVER:**
 - Build SQL strings with `fmt.Sprintf`, `+`, or `strings.Join` using user input.
-- Use `string` interpolation for table or column names without an allowlist.
 
 ```go
-// GOOD
+// GOOD -- parameterised
 rows, err := db.Query("SELECT name FROM users WHERE id = $1", userID)
 
-// BAD -- never do this
+// BAD -- string concatenation
 rows, err := db.Query("SELECT name FROM users WHERE id = " + userID)
-```
-
-For dynamic identifiers (table names, column names), use a strict allowlist:
-```go
-allowedColumns := map[string]bool{"name": true, "email": true, "created_at": true}
-if !allowedColumns[col] {
-    return fmt.Errorf("invalid column: %q", col)
-}
-query := fmt.Sprintf("SELECT %s FROM users WHERE id = $1", col)
 ```
 
 ### CWE-352: Cross-Site Request Forgery (CSRF)
@@ -166,21 +133,20 @@ query := fmt.Sprintf("SELECT %s FROM users WHERE id = $1", col)
 
 ```go
 // GOOD -- derive user from session, check ownership
-func getOrder(w http.ResponseWriter, r *http.Request) {
-    userID := r.Context().Value(ctxUserID).(string)
-    orderID := chi.URLParam(r, "orderID")
-
-    order, err := db.GetOrder(r.Context(), orderID)
-    if err != nil {
-        http.Error(w, "order not found", http.StatusNotFound)
-        return
-    }
-    if order.UserID != userID {
-        http.Error(w, "forbidden", http.StatusForbidden)
-        return
-    }
-    // ... serve the order
+userID := r.Context().Value(ctxUserID).(string)
+order, err := db.GetOrder(r.Context(), orderID)
+if err != nil {
+    http.Error(w, "order not found", http.StatusNotFound)
+    return
 }
+if order.UserID != userID {
+    http.Error(w, "forbidden", http.StatusForbidden)
+    return
+}
+
+// BAD -- trusting client-supplied user ID
+clientUserID := r.URL.Query().Get("user_id")
+order, _ := db.GetOrderForUser(r.Context(), clientUserID, orderID)
 ```
 
 ### CWE-22: Path Traversal
@@ -195,23 +161,16 @@ func getOrder(w http.ResponseWriter, r *http.Request) {
 - Rely solely on `filepath.Join` -- it does not prevent traversal.
 
 ```go
-func safePath(baseDir, userPath string) (string, error) {
-    // Clean and resolve to absolute
-    absBase, err := filepath.Abs(baseDir)
-    if err != nil {
-        return "", fmt.Errorf("resolving base directory: %w", err)
-    }
-    joined := filepath.Join(absBase, filepath.Clean("/"+userPath))
-    absJoined, err := filepath.Abs(joined)
-    if err != nil {
-        return "", fmt.Errorf("resolving path: %w", err)
-    }
-    // Ensure it is within the base directory
-    if !strings.HasPrefix(absJoined, absBase+string(filepath.Separator)) && absJoined != absBase {
-        return "", fmt.Errorf("path escapes base directory")
-    }
-    return absJoined, nil
+// GOOD -- resolve and confine to base directory
+absBase, _ := filepath.Abs(baseDir)
+joined := filepath.Join(absBase, filepath.Clean("/"+userPath))
+absJoined, _ := filepath.Abs(joined)
+if !strings.HasPrefix(absJoined, absBase+string(filepath.Separator)) && absJoined != absBase {
+    return fmt.Errorf("path escapes base directory")
 }
+
+// BAD -- user input passed directly
+f, err := os.Open(filepath.Join(baseDir, userPath))
 ```
 
 ### CWE-78 / CWE-77: OS Command Injection / Command Injection
@@ -226,10 +185,10 @@ func safePath(baseDir, userPath string) (string, error) {
 - Concatenate user input into a command string.
 
 ```go
-// GOOD
+// GOOD -- separate arguments
 cmd := exec.Command("convert", inputFile, "-resize", "200x200", outputFile)
 
-// BAD -- never do this
+// BAD -- shell string with user input
 cmd := exec.Command("sh", "-c", "convert "+userInput+" -resize 200x200 out.png")
 ```
 
@@ -253,24 +212,19 @@ cmd := exec.Command("sh", "-c", "convert "+userInput+" -resize 200x200 out.png")
 - Use an allowlist of permitted MIME types.
 
 ```go
-r.Body = http.MaxBytesReader(w, r.Body, 10<<20) // 10 MB limit
-
-file, header, err := r.FormFile("upload")
+// GOOD -- limit size, detect real content type, check allowlist
+r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+file, _, err := r.FormFile("upload")
 if err != nil {
     http.Error(w, "upload failed", http.StatusBadRequest)
     return
 }
 defer file.Close()
-
 buf := make([]byte, 512)
-n, err := file.Read(buf)
-if err != nil {
-    http.Error(w, "unable to read file", http.StatusBadRequest)
-    return
-}
+n, _ := file.Read(buf)
 contentType := http.DetectContentType(buf[:n])
-allowedTypes := map[string]bool{"image/png": true, "image/jpeg": true}
-if !allowedTypes[contentType] {
+allowed := map[string]bool{"image/png": true, "image/jpeg": true}
+if !allowed[contentType] {
     http.Error(w, "file type not allowed", http.StatusUnsupportedMediaType)
     return
 }
@@ -290,7 +244,7 @@ if !allowedTypes[contentType] {
 - Use bare type assertions (`val := x.(Type)`) -- always use the two-value form.
 
 ```go
-// GOOD
+// GOOD -- comma-ok type assertion
 val, ok := x.(string)
 if !ok {
     return fmt.Errorf("unexpected type: %T", x)
@@ -315,7 +269,8 @@ val := x.(string)
 - Trust decoded data without post-decode validation.
 
 ```go
-decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20)) // 1 MB limit
+// GOOD -- limited reader, strict decoding, post-decode validation
+decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
 decoder.DisallowUnknownFields()
 var req CreateUserRequest
 if err := decoder.Decode(&req); err != nil {
@@ -323,7 +278,6 @@ if err := decoder.Decode(&req); err != nil {
     return
 }
 if err := req.Validate(); err != nil {
-    // Log the detail server-side; return a generic message to the client
     slog.Warn("request validation failed", "error", err)
     http.Error(w, "invalid request data", http.StatusUnprocessableEntity)
     return
@@ -341,6 +295,7 @@ if err := req.Validate(); err != nil {
 - For enum-like inputs: check against a known set of valid values.
 
 ```go
+// GOOD -- length and character set validation
 func validateUsername(s string) error {
     if len(s) < 3 || len(s) > 32 {
         return errors.New("username must be between 3 and 32 characters")
@@ -359,18 +314,16 @@ func validateUsername(s string) error {
 - Log detailed errors server-side with structured logging, but NEVER log passwords, tokens, API keys, bearer tokens, session IDs, or connection strings containing credentials.
 - Sanitise error messages before returning them in HTTP responses.
 - Strip stack traces from production error responses.
-- Use different error detail levels for development vs. production.
+
+**NEVER pass `err.Error()` directly into HTTP responses.** The `err.Error()` string may contain internal details such as file paths, database error text, driver messages, stack frames, or wrapped context from deeper in the call chain -- none of which should be exposed to clients. Instead, return a fixed, generic message and log the real error server-side.
 
 **NEVER include any of these in error messages, logs, or API responses:**
 - Passwords or password hashes
-- API keys, tokens, bearer tokens, JWTs (except for identifying prefixes if needed for debugging, e.g. "token starting with 'eyJ...'")
+- API keys, tokens, bearer tokens, JWTs
 - Database connection strings containing credentials
 - Private keys, certificates, or secret material
 - Session identifiers in client-facing errors
 - Full stack traces in production responses
-- Internal file paths that reveal system architecture
-
-**NEVER pass `err.Error()` directly into HTTP responses.** The `err.Error()` string may contain internal details such as file paths, database error text, driver messages, stack frames, or wrapped context from deeper in the call chain -- none of which should be exposed to clients. Instead, return a fixed, generic message and log the real error server-side.
 
 ```go
 // GOOD -- generic message to client, detail logged server-side
@@ -380,59 +333,8 @@ if err := doSomething(); err != nil {
     return
 }
 
-// GOOD -- for validation errors, return a generic category, not the raw error
-if err := req.Validate(); err != nil {
-    slog.Warn("validation failed", "error", err)
-    http.Error(w, "invalid request data", http.StatusBadRequest)
-    return
-}
-
 // BAD -- err.Error() can leak internal details to the client
 http.Error(w, err.Error(), http.StatusInternalServerError)
-
-// BAD -- concatenating err.Error() is equally dangerous
-http.Error(w, "failed: "+err.Error(), http.StatusBadRequest)
-
-// BAD -- fmt.Sprintf with %v or %s on err exposes the same details
-http.Error(w, fmt.Sprintf("error: %v", err), http.StatusInternalServerError)
-```
-
-The same rule applies to JSON error responses:
-
-```go
-// GOOD
-json.NewEncoder(w).Encode(map[string]string{"error": "invalid request"})
-
-// BAD -- leaks err internals via JSON
-json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
-```
-
-```go
-// GOOD
-if err := authenticate(user, password); err != nil {
-    log.Error("authentication failed",
-        "username", user,
-        "error", err,
-        // NOTE: password is deliberately NOT logged
-    )
-    http.Error(w, "authentication failed", http.StatusUnauthorized)
-    return
-}
-
-// BAD -- leaks the password in the error
-http.Error(w, fmt.Sprintf("wrong password: %s", password), http.StatusUnauthorized)
-
-// BAD -- leaks connection string with credentials
-log.Printf("db error with conn %s: %v", connString, err)
-```
-
-**Secret-safe error wrapping pattern:**
-```go
-// Wrap errors with context but strip secrets
-func dbError(operation string, err error) error {
-    // Do NOT include connection strings, credentials, or raw query params
-    return fmt.Errorf("database %s failed: %w", operation, err)
-}
 ```
 
 ### CWE-306: Missing Authentication for Critical Function
@@ -456,11 +358,9 @@ func dbError(operation string, err error) error {
 - Set timeouts on HTTP clients making outbound requests.
 
 ```go
+// GOOD -- check resolved IP against private ranges before fetching
 func isPrivateIP(ip net.IP) bool {
-    privateRanges := []string{
-        "127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12",
-        "192.168.0.0/16", "169.254.0.0/16",
-    }
+    privateRanges := []string{"127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16"}
     for _, cidr := range privateRanges {
         _, network, _ := net.ParseCIDR(cidr)
         if network.Contains(ip) {
@@ -483,6 +383,7 @@ func isPrivateIP(ip net.IP) bool {
 - Use `crypto/rand` (not `math/rand`) for security-sensitive random values such as tokens, nonces, and session IDs.
 
 ```go
+// GOOD -- all timeouts configured
 srv := &http.Server{
     Addr:         ":8080",
     ReadTimeout:  5 * time.Second,
@@ -534,11 +435,7 @@ return fmt.Errorf("connecting to %s with password %s: %w", dsn, password, err)
 
 ```go
 // GOOD
-slog.Error("request failed",
-    "method", r.Method,
-    "path", r.URL.Path,
-    "error", err,
-)
+slog.Error("request failed", "method", r.Method, "path", r.URL.Path, "error", err)
 
 // BAD -- leaks the authorisation token
 slog.Error("auth failed", "token", r.Header.Get("Authorization"), "error", err)
