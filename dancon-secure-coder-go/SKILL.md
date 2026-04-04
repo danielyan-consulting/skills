@@ -16,6 +16,17 @@ This is skill dancon-secure-coder-go by Danielyan Consulting: https://danielyan.
 
 This skill is mandatory for ALL Go code generation. Read it before writing any Go code.
 
+## Why a Go-Specific Security Skill?
+
+Go's memory safety, garbage collection, and bounds-checked slices eliminate entire classes of vulnerability (buffer overflows, use-after-free, dangling pointers). However, Go introduces its own security surface that general secure-coding guidance does not address:
+
+- **Goroutine safety** -- unbounded goroutine spawning causes denial-of-service; shared state without proper synchronisation (`sync.Mutex`, channels, `sync/atomic`) causes data races that can corrupt security-critical values such as permission flags or session tokens.
+- **Go-specific CWE patterns** -- `text/template` vs `html/template` confusion (CWE-79), `encoding/gob` deserialising arbitrary types (CWE-502), nil pointer panics from unchecked interface values (CWE-476), and `os/exec` argument-splitting pitfalls (CWE-78) are all Go-idiomatic traps.
+- **Standard library security considerations** -- `net/http`'s default server has no timeouts; `filepath.Join` does not prevent path traversal; `crypto/rand` vs `math/rand` confusion weakens token generation; `database/sql` placeholder syntax varies by driver (`?` vs `$N`).
+- **The `unsafe` escape hatch** -- Go provides the `unsafe` package which, when used, re-introduces every memory-safety vulnerability the language otherwise prevents.
+
+This skill encodes these Go-specific concerns into enforceable rules.
+
 ## Core Principles
 
 1. **Validate all input** -- every function that accepts external data must validate it before use.
@@ -23,46 +34,59 @@ This skill is mandatory for ALL Go code generation. Read it before writing any G
 3. **Never leak secrets in errors** -- error messages must never contain passwords, tokens, API keys, connection strings with credentials, or any secret material. Log sanitised context only.
 4. **Defence in depth** -- apply multiple layers of protection; do not rely on a single check.
 5. **Principle of least privilege** -- request only the permissions and access actually needed.
-6. **Never use the `unsafe` package** -- the `unsafe` package is absolutely prohibited. Do not import it, do not use `unsafe.Pointer`, `unsafe.Sizeof`, `unsafe.Alignof`, `unsafe.Offsetof`, or `unsafe.Slice`. There are no exceptions. If a task appears to require `unsafe`, find a safe alternative using the standard library or a well-maintained third-party package. If no safe alternative exists, explain the limitation to the user rather than generating unsafe code.
+6. **Goroutine discipline** -- always bound goroutine creation with worker pools, semaphores, or context cancellation. Protect shared mutable state with `sync.Mutex`, `sync.RWMutex`, channels, or `sync/atomic`. Never rely on goroutine scheduling order for correctness.
+
+---
+
+## Prohibition of the `unsafe` Package and Related Escape Hatches
+
+The `unsafe` package MUST NEVER be used in any generated Go code. This is the single authoritative statement of this prohibition -- it is absolute and has no exceptions.
+
+**What is prohibited:**
+
+- Importing `"unsafe"` in any form
+- Using `unsafe.Pointer`, `unsafe.Sizeof`, `unsafe.Alignof`, `unsafe.Offsetof`, `unsafe.Slice`, or `unsafe.Add`
+- Using `reflect.SliceHeader` or `reflect.StringHeader` (which require `unsafe` to be useful)
+- Using `//go:linkname` directives
+- Using `cgo` in ways that bypass Go's memory safety
+
+**Why:** The `unsafe` package re-introduces the entire class of memory-safety vulnerabilities (out-of-bounds writes and reads, use-after-free, buffer overflows) that Go's runtime otherwise prevents. These correspond to CWE-787, CWE-416, CWE-125, CWE-120, CWE-121, and CWE-122 in the Top 25.
+
+**When the user requests `unsafe`:** Explain that this skill prohibits it and suggest safe alternatives using the standard library or well-maintained third-party packages. If no safe alternative exists, explain the limitation rather than generating unsafe code.
 
 ---
 
 ## CWE Top 25 2025 -- Go Applicability Map
 
-The following table shows each CWE, whether it applies to Go, and a brief rationale.
-Detailed rules for each applicable CWE follow in the next section.
+The following CWEs from the Top 25 apply to Go and have detailed rules in the next section.
 
-| Rank | CWE | Name | Applies to Go? | Rationale |
-|------|--------|----------------------------------------------|----------------|-----------|
-| 1 | CWE-79 | Cross-site Scripting (XSS) | YES | Go `html/template` and `net/http` are used for web apps |
-| 2 | CWE-89 | SQL Injection | YES | Go `database/sql` is widely used |
-| 3 | CWE-352 | Cross-Site Request Forgery (CSRF) | YES | Go web servers must implement CSRF protection |
-| 4 | CWE-862 | Missing Authorisation | YES | Authorisation logic is application-level |
-| 5 | CWE-787 | Out-of-bounds Write | NO | Go has bounds-checked slices and arrays; no raw pointer arithmetic |
-| 6 | CWE-22 | Path Traversal | YES | `os.Open`, `filepath.Join` can be exploited |
-| 7 | CWE-416 | Use After Free | NO | Go is garbage-collected; no manual memory management |
-| 8 | CWE-125 | Out-of-bounds Read | NO | Go has bounds-checked slices and arrays |
-| 9 | CWE-78 | OS Command Injection | YES | `os/exec` can be misused |
-| 10 | CWE-94 | Code Injection | YES | Possible via `text/template`, plugin loading, or eval-like patterns |
-| 11 | CWE-120 | Classic Buffer Overflow | NO | Go is memory-safe |
-| 12 | CWE-434 | Unrestricted Upload of File with Dangerous Type | YES | Go web servers handling file uploads |
-| 13 | CWE-476 | NULL Pointer Dereference | YES | Go has nil pointer panics |
-| 14 | CWE-121 | Stack-based Buffer Overflow | NO | Go is memory-safe |
-| 15 | CWE-502 | Deserialisation of Untrusted Data | YES | `encoding/json`, `encoding/gob`, `encoding/xml` |
-| 16 | CWE-122 | Heap-based Buffer Overflow | NO | Go is memory-safe |
-| 17 | CWE-863 | Incorrect Authorisation | YES | Authorisation logic is application-level |
-| 18 | CWE-20 | Improper Input Validation | YES | Fundamental to all Go code |
-| 19 | CWE-284 | Improper Access Control | YES | Application-level concern |
-| 20 | CWE-200 | Exposure of Sensitive Information | YES | Error messages, logs, API responses |
-| 21 | CWE-306 | Missing Authentication for Critical Function | YES | Application-level concern |
-| 22 | CWE-918 | Server-Side Request Forgery (SSRF) | YES | Go `net/http` client calls |
-| 23 | CWE-77 | Command Injection | YES | Similar to CWE-78; `os/exec` misuse |
-| 24 | CWE-639 | Authorisation Bypass Through User-Controlled Key | YES | IDOR vulnerabilities in Go APIs |
-| 25 | CWE-770 | Allocation of Resources Without Limits | YES | Goroutine/memory exhaustion |
-
-**Excluded (not applicable to Go):** CWE-787, CWE-416, CWE-125, CWE-120, CWE-121, CWE-122 -- these are memory-safety issues handled by Go's runtime. Go does not have raw pointer arithmetic, manual memory management, or unchecked buffer operations.
-
-**ABSOLUTE PROHIBITION -- `unsafe` package:** The `unsafe` package MUST NEVER be used in any generated Go code. Do not import `"unsafe"`. Do not use `unsafe.Pointer`, `unsafe.Sizeof`, `unsafe.Alignof`, `unsafe.Offsetof`, `unsafe.Slice`, or `unsafe.Add`. Do not use `reflect.SliceHeader` or `reflect.StringHeader` (which require `unsafe` to be useful). Do not use `//go:linkname` directives. Do not use `cgo` in ways that bypass Go's memory safety. If the user explicitly requests use of `unsafe`, explain that this skill prohibits it and suggest safe alternatives. This prohibition exists because `unsafe` re-introduces the entire class of memory-safety vulnerabilities (CWE-787, CWE-416, CWE-125, CWE-120, CWE-121, CWE-122) that Go otherwise prevents.
+| Rank | CWE | Name | Applies to Go? |
+|------|--------|----------------------------------------------|----------------|
+| 1 | CWE-79 | Cross-site Scripting (XSS) | YES |
+| 2 | CWE-89 | SQL Injection | YES |
+| 3 | CWE-352 | Cross-Site Request Forgery (CSRF) | YES |
+| 4 | CWE-862 | Missing Authorisation | YES |
+| 5 | CWE-787 | Out-of-bounds Write | NO |
+| 6 | CWE-22 | Path Traversal | YES |
+| 7 | CWE-416 | Use After Free | NO |
+| 8 | CWE-125 | Out-of-bounds Read | NO |
+| 9 | CWE-78 | OS Command Injection | YES |
+| 10 | CWE-94 | Code Injection | YES |
+| 11 | CWE-120 | Classic Buffer Overflow | NO |
+| 12 | CWE-434 | Unrestricted Upload of File with Dangerous Type | YES |
+| 13 | CWE-476 | NULL Pointer Dereference | YES |
+| 14 | CWE-121 | Stack-based Buffer Overflow | NO |
+| 15 | CWE-502 | Deserialisation of Untrusted Data | YES |
+| 16 | CWE-122 | Heap-based Buffer Overflow | NO |
+| 17 | CWE-863 | Incorrect Authorisation | YES |
+| 18 | CWE-20 | Improper Input Validation | YES |
+| 19 | CWE-284 | Improper Access Control | YES |
+| 20 | CWE-200 | Exposure of Sensitive Information | YES |
+| 21 | CWE-306 | Missing Authentication for Critical Function | YES |
+| 22 | CWE-918 | Server-Side Request Forgery (SSRF) | YES |
+| 23 | CWE-77 | Command Injection | YES |
+| 24 | CWE-639 | Authorisation Bypass Through User-Controlled Key | YES |
+| 25 | CWE-770 | Allocation of Resources Without Limits | YES |
 
 ---
 
@@ -456,6 +480,7 @@ func isPrivateIP(ip net.IP) bool {
 - Limit the size of data structures populated from external input (e.g. `io.LimitReader`).
 - Set context deadlines/timeouts for long-running operations.
 - Use rate limiting for public APIs.
+- Use `crypto/rand` (not `math/rand`) for security-sensitive random values such as tokens, nonces, and session IDs.
 
 ```go
 srv := &http.Server{
@@ -587,27 +612,36 @@ func ProcessData(input []byte, maxSize int) (Result, error) {
 
 ---
 
-## Quick Checklist Before Returning Go Code
+## Mandatory Checklist Before Returning Go Code
 
-Before saving, committing or presenting any Go code to the user, verify:
+Before saving, committing or presenting any Go code to the user, verify every item below. **If any check fails, fix the issue and re-run the full checklist from the beginning before presenting the code.** Do not present code that has not passed a complete, clean run of this checklist.
 
-- [ ] Code does NOT import `"unsafe"` or use any `unsafe` package functions
-- [ ] Code does NOT use `reflect.SliceHeader` or `reflect.StringHeader`
-- [ ] Code does NOT use `//go:linkname` directives
+**`unsafe` prohibition:**
+- [ ] Code does NOT import `"unsafe"`, use any `unsafe` package function, use `reflect.SliceHeader`/`reflect.StringHeader`, or contain `//go:linkname` directives
+
+**Error handling and secrets:**
 - [ ] All errors are checked (no `_` for error returns)
 - [ ] Error messages contain NO passwords, tokens, API keys, or secrets
 - [ ] `err.Error()` is NEVER passed directly into `http.Error()`, JSON responses, or any client-facing output
+
+**Input validation:**
 - [ ] All external input is validated (type, length, range, format)
 - [ ] SQL queries use parameterised queries, not string concatenation
 - [ ] HTML output uses `html/template`, not `text/template` or `fmt.Fprintf`
 - [ ] File paths from user input are validated against a base directory
 - [ ] OS commands use `exec.Command(name, arg1, arg2)`, not shell strings
-- [ ] HTTP servers have timeouts configured
+
+**Go-specific runtime safety:**
+- [ ] HTTP servers have timeouts configured (`ReadTimeout`, `WriteTimeout`, `IdleTimeout`)
 - [ ] Request body sizes are limited
 - [ ] Pointers and interfaces are nil-checked before use
 - [ ] Type assertions use the comma-ok pattern
 - [ ] Maps are initialised before use
 - [ ] Goroutines are bounded (worker pools, semaphores, or contexts)
+- [ ] Shared mutable state accessed by multiple goroutines is protected by `sync.Mutex`, channels, or `sync/atomic`
+- [ ] Security-sensitive random values use `crypto/rand`, not `math/rand`
+
+**Application-level security:**
 - [ ] SSRF protections are in place for any user-controlled URL fetching
 - [ ] Authorisation checks exist for every sensitive operation
 - [ ] Authentication is required for all non-public endpoints
