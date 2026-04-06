@@ -1,11 +1,11 @@
 ---
 name: dancon-secure-cfworker
-description: Generate secure Cloudflare Worker code in TypeScript that avoids all weaknesses covered by OWASP Top 10 (2025) and CWE Top 25 (2025). Use this skill whenever the user asks to create, write, scaffold, or generate a Cloudflare Worker, CF Worker, edge function, or serverless function on Cloudflare. Also trigger when the user asks to build a secure API, secure endpoint, secure webhook handler, or any TypeScript code targeting the Workers runtime. Trigger even for casual requests like "make me a worker that does X", "CF worker for Y", "edge API for Z", or "I need a Cloudflare function". If the user mentions Cloudflare Workers and security together, or asks for a hardened/secure worker, this skill is essential. Always use this skill over generic code generation when the target is Cloudflare Workers.
+description: Generate secure Cloudflare Worker code in TypeScript that avoids all weaknesses covered by OWASP Top 10 (2025) and CWE Top 25 (2025). Use this skill whenever the user asks to create, write, scaffold, or generate a Cloudflare Worker, CF Worker, edge function, or serverless function on Cloudflare. Also trigger when the user asks to build a secure API, secure endpoint, secure webhook handler, or any TypeScript code targeting the Workers runtime. Always use this skill over generic code generation when the target is Cloudflare Workers.
 ---
 
 # Secure Cloudflare Worker Generator
 
-This skill generates production-grade, security-hardened Cloudflare Worker code in TypeScript. Every piece of generated code systematically addresses the weaknesses catalogued in the OWASP Top 10 (2025) and CWE Top 25 (2025), applying defence-in-depth principles tailored to the Workers runtime.
+This skill generates security-hardened Cloudflare Worker code in TypeScript. Every piece of generated code systematically addresses the applicable weaknesses catalogued in the OWASP Top 10 (2025) and CWE Top 25 (2025), applying defence-in-depth principles tailored to the Workers runtime.
 
 ## Before You Start
 
