@@ -8,9 +8,7 @@ description: >
   codebase regardless of language. Trigger on: "check my inputs", "find injection
   risks", "validate user input", "security audit inputs", "input sanitisation
   review", "taint analysis", "harden my API inputs", "check for missing validation",
-  "is my app safe from injection?", "review my code for security", "can someone
-  exploit my form?", "check my endpoints". Platform- and language-independent.
-  Flags hardcoded secrets (redacted). Reviews the ENTIRE codebase exhaustively.
+  "is my app safe from injection?". Platform- and language-independent.
 ---
 
 # Input-Validation Security Audit
@@ -35,9 +33,7 @@ validation strategies and the threat model you should apply.
    input-handling logic has been reviewed. Never stop after the first finding.
    Explicitly confirm to the user that the full codebase has been reviewed.
 
-2. **Whitelisting over blacklisting** -- blacklisting (denying known-bad values) is
-   NOT an acceptable validation strategy because attackers will always find values
-   that are not on the list. Every recommendation must use a positive-security model:
+2. **Whitelisting over blacklisting** -- Every recommendation must use a positive-security model:
    define what IS allowed, reject everything else.
 
 3. **Defence in depth** -- validation should occur at the boundary closest to the
@@ -118,8 +114,7 @@ When reporting, substitute `REDACTED` for every secret value. Example:
 > File: `src/config.js`, line 14
 > Variable `DB_PASSWORD` is set to `REDACTED`.
 > Move this value to an environment variable or a dedicated secret-management
-> service (e.g. AWS Secrets Manager, HashiCorp Vault, Azure Key Vault, 1Password
-> Secrets Automation).
+> service.
 
 ### Step 4 -- Produce the report
 
