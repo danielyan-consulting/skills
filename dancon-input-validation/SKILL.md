@@ -22,7 +22,7 @@ an external or untrusted source is consumed without adequate validation, and pro
 a structured report with context-appropriate remediation advice.
 
 Before starting, read the reference file at
-`references/validation-patterns.md` (relative to this skill) for the catalogue of
+`references/validation-patterns.md` for the catalogue of
 validation strategies and the threat model you should apply.
 
 ---
@@ -33,12 +33,10 @@ validation strategies and the threat model you should apply.
    input-handling logic has been reviewed. Never stop after the first finding.
    Explicitly confirm to the user that the full codebase has been reviewed.
 
-2. **Whitelisting over blacklisting** -- Every recommendation must use a positive-security model:
-   define what IS allowed, reject everything else.
+2. **Whitelisting over blacklisting** -- Every recommendation must use a positive-security model.
 
 3. **Defence in depth** -- validation should occur at the boundary closest to the
-   untrusted source AND again before the data is used in a sensitive operation (e.g.
-   database query, OS command, file-system access, deserialisation, rendering).
+   untrusted source.
 
 4. **Secrets redaction** -- if any hardcoded secret (password, API key, token,
    private key, connection string with credentials, etc.) is found anywhere in the
